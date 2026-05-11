@@ -1,9 +1,16 @@
+import { useMatches } from "react-router-dom";
 import { useSetAtom } from "jotai";
 import { userInfoKeyState, userInfoState } from "@/state";
 import { authorize } from "zmp-sdk/apis";
 import { loginWithZalo } from "@/utils/auth";
 import { useAtomCallback } from "jotai/utils";
 import toast from "react-hot-toast";
+
+export function useRouteHandle() {
+  const matches = useMatches();
+  const match = matches[matches.length - 1] || {};
+  return [match.handle || {}, match] as any;
+}
 
 export function useRequestInformation() {
   const getStoredUserInfo = useAtomCallback(async (get) => {

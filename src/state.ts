@@ -1,4 +1,4 @@
-import { atom } from "jotai";
+import { atom, useSetAtom } from "jotai";
 import {
   atomFamily,
   atomWithRefresh,
@@ -135,9 +135,16 @@ export const categoriesStateUpwrapped = unwrap(
 
 export const productsState = atom(async (get) => {
   const categories = await get(categoriesState);
+  
+  // TODO: Mai sẽ thay bằng API thật từ Vendure ở đây
+  // Ví dụ: await request("/products-from-vendure")
+  console.log("Đang gọi API giả lập lấy sản phẩm...");
+  await new Promise((resolve) => setTimeout(resolve, 800)); // Giả lập độ trễ mạng
+  
   const products = await requestWithFallback<
     (Product & { categoryId: number })[]
   >("/products", []);
+  
   return products.map((product) => ({
     ...product,
     category: categories.find(
@@ -145,6 +152,7 @@ export const productsState = atom(async (get) => {
     )!,
   }));
 });
+
 
 export const flashSaleProductsState = atom((get) => get(productsState));
 
@@ -262,3 +270,23 @@ export const deliveryModeState = atomWithStorage<Delivery["type"]>(
   CONFIG.STORAGE_KEYS.DELIVERY,
   "shipping"
 );
+
+export const useAddToCart = () => {
+  const setCart = useSetAtom(cartState);
+  return (product: Product, quantity: number = 1) => {
+    setCart((cart) => {
+      const existingItem = cart.find((item) => item.product.id === product.id);
+      if (existingItem) {
+        toast.success(`Đã cập nhật số lượng ${product.name}`);
+        return cart.map((item) =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
+      }
+      toast.success(`Đã thêm ${product.name} vào giỏ hàng`);
+      return [...cart, { product, quantity }];
+    });
+  };
+};
+

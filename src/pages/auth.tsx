@@ -5,7 +5,10 @@ import logo from "@/static/g8_logo.png"; // I will move the generated logo to th
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { BottomNavigation } from "@/components/bottom-navigation";
+
 const AuthPage: React.FC = () => {
+
   const requestInfo = useRequestInformation();
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -17,7 +20,7 @@ const AuthPage: React.FC = () => {
       console.log({user})
       if (user) {
         toast.success("Đăng nhập thành công!");
-        // Navigate to a profile or home if needed, but for now we stay here or show success
+        navigate("/");
       }
     } catch (error: any) {
       toast.error(error.message || "Đăng nhập thất bại");
@@ -73,7 +76,9 @@ const AuthPage: React.FC = () => {
           Powered by Epacific
         </Text>
       </Box>
+      <BottomNavigation />
     </Page>
+
   );
 };
 
