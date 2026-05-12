@@ -446,7 +446,8 @@ export const CartSidebar: React.FC = () => {
               </Box>
 
               {showCreateAddress && (
-                <Box className="space-y-3 max-h-[45vh] overflow-y-auto overscroll-contain pr-1">
+                <Box className="space-y-4 py-2 border-y border-gray-100 my-2">
+                  <Text bold className="text-primary">Thêm địa chỉ mới</Text>
                   <Input
                     label="Họ và tên"
                     value={fullName}
@@ -476,6 +477,7 @@ export const CartSidebar: React.FC = () => {
                     fullWidth
                     disabled={processing}
                     onClick={handleCreateAddress}
+                    className="mt-2"
                   >
                     {processing ? <Spinner /> : "Lưu địa chỉ"}
                   </Button>
