@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "zmp-ui";
 import { useAddToCart } from "@/hooks";
 import QuantityInput from "./quantity-input";
+import { NgrokImage } from "@/components/ngrok-image";
 
 export interface ProductItemProps {
   product: Product;
@@ -31,7 +32,7 @@ export default function ProductItem(props: ProductItemProps) {
       >
         {({ isTransitioning }) => (
           <>
-            <img
+            <NgrokImage
               src={props.product.image}
               className="w-full aspect-square object-cover rounded-lg"
               style={{

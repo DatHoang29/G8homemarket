@@ -38,6 +38,8 @@ export default function Header() {
       className="w-full flex flex-col px-4 bg-primary text-primaryForeground pt-st overflow-hidden bg-no-repeat bg-right-top"
       style={{
         backgroundImage: `url(${headerIllus})`,
+        paddingTop:
+          "max(44px, var(--zaui-safe-area-inset-top, env(safe-area-inset-top, 0px)))",
       }}
     >
       <div className="w-full min-h-12 pr-[90px] flex py-2 space-x-2 items-center">

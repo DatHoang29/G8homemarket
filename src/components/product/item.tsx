@@ -1,8 +1,15 @@
 import React from "react";
-import { Box, Text, Button, Icon } from "zmp-ui";
+import { Box, Text, Button } from "zmp-ui";
 import { Product } from "@/types";
 import { useAddToCart } from "@/state";
 import { formatPrice } from "@/utils/format";
+import { NgrokImage } from "@/components/ngrok-image";
+
+const SvgPlus = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+  </svg>
+);
 
 export interface ProductItemProps {
   product: Product;
@@ -19,10 +26,10 @@ export const ProductItem: React.FC<ProductItemProps> = ({ product }) => {
           // Future: Navigate to product detail
         }}
       >
-        <img 
-          src={product.image} 
-          alt={product.name} 
-          className="w-full h-full object-cover transition-transform duration-300 hover:scale-105" 
+        <NgrokImage
+          src={product.image}
+          alt={product.name}
+          className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
         />
         {product.originalPrice > product.price && (
           <Box className="absolute top-2 left-2 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
@@ -51,14 +58,13 @@ export const ProductItem: React.FC<ProductItemProps> = ({ product }) => {
         <Button
           size="small"
           fullWidth
-          className="rounded-lg h-9 text-xs font-semibold flex items-center justify-center space-x-1"
-          onClick={(e) => {
-            e.stopPropagation();
+          onClick={() => {
+            console.log("Button 'Thêm' clicked for product:", product.name);
             addToCart(product);
           }}
+          prefixIcon={<SvgPlus />}
         >
-          <Icon icon="zi-plus" size={14} />
-          <span>Thêm</span>
+          Thêm
         </Button>
       </Box>
     </Box>

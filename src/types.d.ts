@@ -8,7 +8,7 @@ export interface UserInfo {
 }
 
 export interface Product {
-  id: number;
+  id: number | string;
   name: string;
   price: number;
   originalPrice?: number;
@@ -17,6 +17,7 @@ export interface Product {
   detail?: string;
   sizes?: Size[];
   colors?: Color[];
+  variantId?: string | number;
 }
 
 export interface Category {

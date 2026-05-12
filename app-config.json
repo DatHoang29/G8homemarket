@@ -20,5 +20,11 @@
     "logoUrl": "https://photo-logo-mapps.zadn.vn/284fadf20bb7e2e9bba6.jpg",
     "shopName": "Tiệm Tí Hon",
     "shopAddress": "Z06 Số 13, Tân Thuận Đông, Quận 7, Hồ Chí Minh"
-  }
+  },
+  "whitelistDomains": [
+    "chae-unbeguiled-maudie.ngrok-free.dev",
+    "picsum.photos",
+    "fastly.picsum.photos",
+    "photo-logo-mapps.zadn.vn"
+  ]
 }

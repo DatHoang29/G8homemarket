@@ -1,5 +1,5 @@
 // React core
-import { createElement } from "react";
+import { createElement, Fragment } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 
@@ -12,6 +12,8 @@ import "zmp-ui/zaui.css";
 import "@/css/tailwind.scss";
 // Your stylesheet
 import "@/css/app.scss";
+
+import { Toaster } from "react-hot-toast";
 
 // Expose app configuration
 import appConfig from "../app-config.json";
@@ -27,6 +29,30 @@ if (!window.APP_CONFIG) {
   window.APP_CONFIG = appConfig;
 }
 
+import { App } from "zmp-ui";
+
 // Mount the app
 const root = createRoot(document.getElementById("app")!);
-root.render(createElement(RouterProvider, { router }));
+root.render(
+  createElement(
+    App,
+    null,
+    createElement(
+      Fragment,
+      null,
+      createElement(RouterProvider, { router }),
+      createElement(Toaster, {
+        position: "bottom-center",
+        toastOptions: {
+          className: "mb-20", // Tránh đè lên Bottom Navigation nếu có
+          style: {
+            borderRadius: "12px",
+            background: "#333",
+            color: "#fff",
+            fontSize: "14px",
+          },
+        },
+      })
+    )
+  )
+);

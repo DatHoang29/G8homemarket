@@ -28,7 +28,10 @@
   --zaui-light-tabbar-active-line: var(--primary);
   --zaui-light-tabbar-label-active: var(--primary);
 
-  --safe-top: var(--zaui-safe-area-inset-top, env(safe-area-inset-top, 30px));
+  --safe-top: max(
+    30px,
+    var(--zaui-safe-area-inset-top, env(safe-area-inset-top, 0px))
+  );
   --safe-bottom: max(
     16px,
     var(--zaui-safe-area-inset-bottom, env(safe-area-inset-bottom, 30px))
