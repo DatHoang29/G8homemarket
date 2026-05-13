@@ -686,7 +686,6 @@ export const useCheckout = () => {
 
       // Thành công
       toast.dismiss("checkout");
-      toast.success("Tạo đơn hàng thành công!");
       setCart([]);
       
       return paymentData?.code;
