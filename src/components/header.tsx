@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   categoriesStateUpwrapped,
   loadableUserInfoState,
-  userInfoState,
 } from "@/state";
 import { useMemo } from "react";
 import { useRouteHandle } from "@/hooks";
@@ -32,7 +31,6 @@ export default function Header() {
   }, [handle, categories]);
 
   const showBack = location.key !== "default" && !handle?.noBack;
-
   return (
     <div
       className="w-full flex flex-col px-4 bg-primary text-primaryForeground pt-st overflow-hidden bg-no-repeat bg-right-top"

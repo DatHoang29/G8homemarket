@@ -1,17 +1,23 @@
 import { createBrowserRouter } from "react-router-dom";
-import AuthPage from "@/pages/auth";
 import HomePage from "@/pages/index";
 import { getBasePath } from "@/utils/zma";
+import Layout from "@/components/layout";
 
 const router = createBrowserRouter(
   [
     {
-      path: "/",
-      element: <HomePage />,
-    },
-    {
-      path: "/auth",
-      element: <AuthPage />,
+      // element: <Layout />,
+      children: [
+        {
+          path: "/",
+          element: <HomePage />,
+          handle: {
+            title: "G8 Home Market",
+            logo: true,
+            search: true,
+          },
+        },
+      ],
     },
   ],
   { basename: getBasePath() }

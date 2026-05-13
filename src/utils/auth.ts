@@ -22,19 +22,16 @@ function isValidSdkToken(token: unknown): token is string {
   return true;
 }
 
-export async function loginWithZalo() {
+export async function loginWithZalo(tokenLocation: string) {
   try {
     const inZaloEnv =
       typeof window !== "undefined" && Boolean((window as any).ZJSBridge);
 
     // 1. Lấy Access Token từ Zalo
     let accessToken = await getAccessToken();
-    if (!accessToken)
-      accessToken = "752658f5d13832475dec8a4f0d3c70bfc0df56cee3915c44c6b0ba12059065cf";
     if (!accessToken) {
-      console.log("No access token, requesting authorization...");
-      await authorize({ scopes: ["scope.userInfo"] });
-      accessToken = await getAccessToken();
+      accessToken =
+        "752658f5d13832475dec8a4f0d3c70bfc0df56cee3915c44c6b0ba12059065cf";
     }
     console.log("Access Token:", accessToken ? "YES" : "NO");
 
@@ -53,35 +50,38 @@ export async function loginWithZalo() {
     // Nếu token không có/không hợp lệ thì xin quyền + retry (chỉ khi đang ở Zalo)
     if (!isValidSdkToken(phoneToken) && inZaloEnv) {
       try {
-        console.log("No phone token, requesting authorization...");
-        await authorize({ scopes: ["scope.userPhonenumber"] });
         const retry = await getPhoneNumber({});
         phoneToken = retry?.token;
       } catch (e) {
-        console.warn("authorize/getPhoneNumber retry failed:", e);
+        console.warn("getPhoneNumber retry failed:", e);
       }
     }
 
-    const usingFallback = !isValidSdkToken(phoneToken);
-    console.log({ inZaloEnv, phoneTokenValid: !usingFallback, usingFallback });
+    if (!isValidSdkToken(phoneToken) && inZaloEnv) {
+      throw new Error(
+        "Bạn cần cấp quyền truy cập số điện thoại để sử dụng ứng dụng.",
+      );
+    }
 
-    const finalToken = isValidSdkToken(phoneToken)
-      ? phoneToken
-      : DEFAULT_ENCRYPTED_PHONE_TOKEN;
+    const usingFallback = !isValidSdkToken(phoneToken);
+    const finalToken = usingFallback
+      ? DEFAULT_ENCRYPTED_PHONE_TOKEN
+      : (phoneToken as string);
     console.log(
       "Phone token:",
-      isValidSdkToken(phoneToken) ? "YES" : "NO (fallback)"
+      isValidSdkToken(phoneToken)
+        ? "YES"
+        : "NO (fallback used for non-Zalo env)",
     );
     console.log(
       "encryptedPhoneToken source:",
       usingFallback ? "DEFAULT_ENCRYPTED_PHONE_TOKEN" : "SDK",
       "len:",
-      typeof finalToken === "string" ? finalToken.length : 0
+      typeof finalToken === "string" ? finalToken.length : 0,
     );
 
     // 3. TODO: Mai sẽ bật đoạn gọi API thật này lên
     // Hiện tại đang giả lập gọi đến Vendure ngrok
-    console.log("Đang giả lập gọi API Vendure để lấy session token...");
 
     try {
       const res = await fetch(CONFIG.VENDURE_API, {
@@ -89,16 +89,22 @@ export async function loginWithZalo() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: `
-            mutation Authenticate($accessToken: String!, $encryptedPhoneToken: String!) {
+            mutation Authenticate($accessToken: String!, $encryptedPhoneToken: String!, $locationToken: String!) {
               authenticate(
                 input: {
-                  zalo_token: { accessToken: $accessToken, encryptedPhoneToken: $encryptedPhoneToken }
+                  zalo_token: { accessToken: $accessToken, encryptedPhoneToken: $encryptedPhoneToken, locationToken: $locationToken }
                 }
               ) {
                 __typename
                 ... on CurrentUser {
                   id
                   identifier
+                  location {
+                    latitude
+                    longitude
+                    provider
+                    timestamp
+                  }
                 }
                 ... on ErrorResult {
                   errorCode
@@ -110,6 +116,7 @@ export async function loginWithZalo() {
           variables: {
             accessToken,
             encryptedPhoneToken: finalToken,
+            locationToken: tokenLocation || "",
           },
         }),
       });
@@ -121,8 +128,15 @@ export async function loginWithZalo() {
       if (body?.errors?.length) {
         console.error("Authenticate GraphQL errors:", body.errors);
       }
-      const result = body?.data?.authenticate as CurrentUser | ErrorResult | undefined;
-      console.log({ authenticateTypename: (result as any)?.__typename, result });
+      
+      const result = body?.data?.authenticate as
+        | CurrentUser
+        | ErrorResult
+        | undefined;
+      console.log({
+        authenticateTypename: (result as any)?.__typename,
+        result,
+      });
       if (result && result.__typename === "CurrentUser") {
         console.log("Authentication successful, saving tokens...");
         // Lưu ZMA Access Token để dùng cho các request sau
@@ -134,50 +148,67 @@ export async function loginWithZalo() {
           localStorage.setItem("vendure_session", sessionToken);
         }
         localStorage.setItem("user_id", result.id);
+
+        // Lưu thông tin vị trí mà Server vừa giải mã và trả về
+        const serverLocation = (body?.data?.authenticate as any)?.location;
+        if (serverLocation) {
+          const { latitude, longitude, provider, timestamp } = serverLocation;
+          if (latitude) localStorage.setItem("user_latitude", latitude.toString());
+          if (longitude) localStorage.setItem("user_longitude", longitude.toString());
+          if (provider) localStorage.setItem("user_provider", provider);
+          if (timestamp) localStorage.setItem("user_location_timestamp", timestamp.toString());
+          console.log("Saved Location from Server:", serverLocation);
+        }
+
         return result;
       } else {
         console.warn("Authentication response was not CurrentUser:", result);
       }
     } catch (e) {
-      console.warn("API Vendure chưa sẵn sàng, dùng data giả lập để tiếp tục UI.");
+      console.warn(
+        "API Vendure chưa sẵn sàng, dùng data giả lập để tiếp tục UI.",
+      );
     }
 
     // Dữ liệu giả lập khi API chưa chạy (Dùng cho ngày hôm nay)
     const mockUser: CurrentUser = {
       id: "mock-user-123",
       identifier: "guest@g8home.vn",
-      __typename: "CurrentUser"
+      __typename: "CurrentUser",
     };
     console.log("Using mock data, saving zma_token:", accessToken);
-    localStorage.setItem("zma_token", accessToken || "752658f5d13832475dec8a4f0d3c70bfc0df56cee3915c44c6b0ba12059065cf"); // Vẫn lưu token ZMA giả lập
+    localStorage.setItem(
+      "zma_token",
+      accessToken ||
+        "752658f5d13832475dec8a4f0d3c70bfc0df56cee3915c44c6b0ba12059065cf",
+    ); // Vẫn lưu token ZMA giả lập
     // localStorage.setItem("vendure_session", "mock-session-token");
     localStorage.setItem("user_id", mockUser.id);
 
     // Giả lập delay mạng
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
 
     return mockUser;
-
   } catch (error) {
     console.error("loginWithZalo error:", error);
     throw error;
   }
 }
 
-
 // Hàm bổ trợ để gọi các API khác của Vendure sau khi đã login
-export async function shopApi(query: string, variables: Record<string, any> = {}) {
-  const zmaToken = localStorage.getItem("zma_token");
+export async function shopApi(
+  query: string,
+  variables: Record<string, any> = {},
+) {
+  // const zmaToken = localStorage.getItem("zma_token");
   const sessionToken = localStorage.getItem("vendure_session");
-
-  console.log("Calling shopApi | ZMA Token:", zmaToken ? "YES" : "NO", "| Session Token:", sessionToken ? "YES" : "NO");
 
   const res = await fetch(CONFIG.VENDURE_API, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       // Luôn gửi Zalo Access Token (lấy sau khi đăng nhập) làm Bearer token
-      ...(sessionToken && { "Authorization": `Bearer ${sessionToken}` }),
+      ...(sessionToken && { Authorization: `Bearer ${sessionToken}` }),
       // Kèm theo Vendure session token nếu có
       // ...(sessionToken && { "vendure-auth-token": sessionToken }),
     },
@@ -194,7 +225,6 @@ export async function shopApi(query: string, variables: Record<string, any> = {}
   }
 
   // Đã loại bỏ logic tự động cập nhật session token để giữ đúng token từ bước Auth
-
 
   const result = await res.json();
   if (result.errors) {

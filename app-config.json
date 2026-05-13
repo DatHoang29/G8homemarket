@@ -17,11 +17,12 @@
     "name": "zaui-market",
     "apiUrl": "",
     "oaIDtoOpenChat": "4318657068771012646",
-    "logoUrl": "https://photo-logo-mapps.zadn.vn/284fadf20bb7e2e9bba6.jpg",
-    "shopName": "Tiệm Tí Hon",
+    "logoUrl": "https://images.weserv.nl/?url=thietbidieng8.com/userfile/config/Logo.png",
+    "shopName": "G8 Home",
     "shopAddress": "Z06 Số 13, Tân Thuận Đông, Quận 7, Hồ Chí Minh"
   },
   "whitelistDomains": [
+    "thietbidieng8.com",
     "chae-unbeguiled-maudie.ngrok-free.dev",
     "picsum.photos",
     "fastly.picsum.photos",

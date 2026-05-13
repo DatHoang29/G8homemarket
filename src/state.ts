@@ -1,4 +1,4 @@
-import { atom, useSetAtom } from "jotai";
+import { atom, useSetAtom, useAtomValue } from "jotai";
 import {
   atomFamily,
   atomWithRefresh,
@@ -10,6 +10,8 @@ import {
   Cart,
   Category,
   Delivery,
+  GeocodingAddress,
+  GeocodingResponse,
   Location,
   Order,
   OrderStatus,
@@ -18,15 +20,32 @@ import {
   Station,
   UserInfo,
 } from "@/types";
+
+export const fetchAddressFromCoords = async (lat: string | number, lon: string | number): Promise<GeocodingResponse | null> => {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+      {
+        headers: {
+          'Accept-Language': 'vi'
+        }
+      }
+    );
+    if (!response.ok) throw new Error("Network response was not ok");
+    const data: GeocodingResponse = await response.json();
+    return data;
+  } catch (error) {
+    console.error("fetchAddressFromCoords Error:", error);
+    return null;
+  }
+};
 import { requestWithFallback } from "@/utils/request";
 import {
   getLocation,
   getPhoneNumber,
-  authorize,
   getSetting,
   getUserInfo,
   getAccessToken,
-  showToast
 } from "zmp-sdk/apis";
 import toast from "react-hot-toast";
 import { shopApi } from "./utils/auth";
@@ -34,10 +53,21 @@ import { calculateDistance } from "./utils/location";
 import { formatDistant } from "./utils/format";
 import CONFIG from "./config";
 
-const ADD_TO_CART_TOAST_ID = "add-to-cart";
 let addToCartToastTimer: ReturnType<typeof setTimeout> | null = null;
 let addToCartPendingCount = 0;
 let addToCartLastName = "";
+
+const MOCK_PRODUCTS: Product[] = Array.from({ length: 10 }).map((_, index) => ({
+  id: `mock-${index + 1}`,
+  name: `Sản phẩm Mock ${index + 1}`,
+  price: (index + 1) * 50000,
+  originalPrice: (index + 1) * 75000,
+  image: `https://picsum.photos/400/400?random=${index}`,
+  category: { id: 1, name: "Danh mục Mock", image: "" },
+  detail: `Mô tả cho sản phẩm mock số ${index + 1}. Đây là dữ liệu dùng để hiển thị khi API không có dữ liệu.`,
+  variantId: `mock-variant-${index + 1}`
+}));
+
 
 function queueAddToCartToast(productName: string, quantityAdded: number) {
   addToCartPendingCount += Math.max(1, Number(quantityAdded) || 1);
@@ -51,12 +81,12 @@ function queueAddToCartToast(productName: string, quantityAdded: number) {
     addToCartLastName = "";
     addToCartToastTimer = null;
 
-    const message =
-      count <= 1
-        ? `Đã thêm ${name || "sản phẩm"} vào giỏ hàng`
-        : `Đã thêm ${count} sản phẩm vào giỏ hàng`;
+    // const message =
+    //   count <= 1
+    //     ? `Đã thêm ${name || "sản phẩm"} vào giỏ hàng`
+    //     : `Đã thêm ${count} sản phẩm vào giỏ hàng`;
 
-    toast.success(message, { id: ADD_TO_CART_TOAST_ID });
+    // toast.success(message, { id: ADD_TO_CART_TOAST_ID });
   }, 350);
 }
 
@@ -70,10 +100,8 @@ export const userInfoState = atom<Promise<UserInfo>>(async (get) => {
   // Phía tích hợp có thể thay đổi logic này thành fetch từ server
   let accessToken = await getAccessToken();
   if (!accessToken) {
-    await authorize({
-      scopes: ["scope.userInfo"],
-    });
-    accessToken = await getAccessToken();
+    // Không tự động xin quyền ở đây nữa để tránh chồng chéo
+    return { id: "", name: "Khách", avatar: "", phone: "", email: "", address: "" };
   }
   console.log("accessToken:", accessToken);
   // if (savedUserInfo) {
@@ -90,6 +118,7 @@ export const userInfoState = atom<Promise<UserInfo>>(async (get) => {
   }
   // Người dùng cho phép truy cập tên và ảnh đại diện
   const { userInfo } = await getUserInfo({});
+  console.log({userInfo})
   const phone =
     grantedPhoneNumber // Người dùng cho phép truy cập số điện thoại
       ? await get(phoneState)
@@ -113,9 +142,8 @@ export const phoneState = atom(async () => {
     const grantedPhoneNumber = setting.authSetting?.["scope.userPhonenumber"];
 
     if (!grantedPhoneNumber) {
-      await authorize({
-        scopes: ["scope.userPhonenumber"],
-      });
+      // Không tự động xin quyền ở đây nữa
+      return "";
     }
 
     const { token } = await getPhoneNumber({});
@@ -128,15 +156,8 @@ export const phoneState = atom(async () => {
     // phone = await decodeToken(token);
 
     // Các bước bên dưới để demo chức năng, phía tích hợp có thể bỏ đi sau.
-    toast(
-      "Đã lấy được token chứa số điện thoại người dùng. Phía tích hợp cần decode token này ở server. Giả lập số điện thoại 0912345678...",
-      {
-        icon: "ℹ",
-        duration: 10000,
-      }
-    );
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    phone = "0912345678";
+    phone = "0777787399";
     // End demo
   } catch (error) {
     console.warn(error);
@@ -201,12 +222,11 @@ export const productsState = atom(async (get) => {
       }
     };
 
-    console.log("Fetching products from Vendure...");
     const response = await shopApi(query, variables);
-    console.log("Raw Vendure search response:", response);
     const items = response?.data?.search?.items || [];
-
-    return items.map((item: any) => ({
+    const result = items
+      .filter((item: any) => !!item.productAsset?.preview)
+      .map((item: any) => ({
       id: item.productId,
       variantId: item.productVariantId,
       name: item.productName,
@@ -218,7 +238,6 @@ export const productsState = atom(async (get) => {
           url.includes("ngrok") ? `${url}${url.includes("?") ? "&" : "?"}ngrok-skip-browser-warning=true` : url;
 
         const rawPreview = item.productAsset?.preview || "";
-        console.log("Raw Preview Path:", rawPreview);
         const preview = rawPreview.replace(/\\/g, "/");
         // Nếu URL đã đầy đủ (http)
         if (preview.startsWith("http")) return addNgrokBypass(preview);
@@ -238,10 +257,16 @@ export const productsState = atom(async (get) => {
       inStock: item.inStock
     })) as Product[];
 
+    if (result.length === 0) {
+      console.log("No products found from API, falling back to mock data.");
+      return MOCK_PRODUCTS;
+    }
+
+    return result;
+
   } catch (error) {
-    console.error("Error fetching products:", error);
-    // Return empty list or fallback to mock if desired, but here we return empty to show error
-    return [];
+    console.error("Error fetching products, falling back to mock data:", error);
+    return MOCK_PRODUCTS;
   }
 });
 
@@ -260,6 +285,36 @@ export const productState = atomFamily((id: string | number) =>
 export const cartState = atomWithStorage<Cart>("cart", []);
 
 export const cartVisibleState = atom(false);
+export const authSheetVisibleState = atom(!localStorage.getItem("zma_token"));
+
+export const userAddressState = atom(localStorage.getItem("user_address") || "");
+
+export const userAddressDetailState = atomWithStorage<GeocodingAddress | null>(
+  "user_address_detail",
+  localStorage.getItem("user_address_detail") 
+    ? JSON.parse(localStorage.getItem("user_address_detail")!) 
+    : null
+);
+
+export const userLocationState = atomWithStorage("user_location", {
+  latitude: localStorage.getItem("user_latitude"),
+  longitude: localStorage.getItem("user_longitude"),
+}, {
+  getItem: (key) => ({
+    latitude: localStorage.getItem("user_latitude"),
+    longitude: localStorage.getItem("user_longitude"),
+  }),
+  setItem: (key, value) => {
+    if (value && typeof value === 'object') {
+      if (value.latitude) localStorage.setItem("user_latitude", String(value.latitude));
+      if (value.longitude) localStorage.setItem("user_longitude", String(value.longitude));
+    }
+  },
+  removeItem: (key) => {
+    localStorage.removeItem("user_latitude");
+    localStorage.removeItem("user_longitude");
+  }
+});
 
 export const selectedCartItemIdsState = atom<(string | number)[]>([]);
 
@@ -281,13 +336,14 @@ export const cartTotalState = atom((get) => {
     return val;
   };
 
-  const totalItems = items.reduce((total, item) => total + (Number(item.quantity) || 0), 0);
+  const totalItems = items.reduce((total, item) => total + (item ? (Number(item.quantity) || 0) : 0), 0);
   const totalAmount = items.reduce(
-    (total, item) => total + getPrice(item.product) * (Number(item.quantity) || 0),
+    (total, item) => {
+      if (!item || !item.product) return total;
+      return total + getPrice(item.product) * (Number(item.quantity) || 0);
+    },
     0
   );
-
-  console.log("Total Items:", totalItems, "Total Amount:", totalAmount);
 
   return {
     totalItems,
@@ -322,13 +378,6 @@ export const stationsState = atom(async () => {
     // location = await decodeToken(token);
 
     // Các bước bên dưới để demo chức năng, phía tích hợp có thể bỏ đi sau.
-    toast(
-      "Đã lấy được token chứa thông tin vị trí người dùng. Phía tích hợp cần decode token này ở server. Giả lập vị trí tại VNG Campus...",
-      {
-        icon: "ℹ",
-        duration: 10000,
-      }
-    );
     await new Promise((resolve) => setTimeout(resolve, 1000));
     location = {
       lat: 10.773756,
@@ -423,8 +472,6 @@ export const useAddToCart = () => {
         quantity: quantity
       };
 
-      console.log("Adding to Vendure cart:", variables);
-      console.log("Product data being added:", product);
       const response = await shopApi(query, variables);
       const result = response?.data?.addItemToOrder;
 
@@ -485,8 +532,6 @@ export const useCheckout = () => {
       return;
     }
     try {
-      toast.loading("Đang xử lý thanh toán...", { id: "checkout" });
-
       // 1. Set Address
       console.log("Checkout Step 1: Setting Address...");
       const setAddressQuery = `
@@ -509,19 +554,20 @@ export const useCheckout = () => {
       `;
       const addressVars = {
         input: {
-          fullName: (input?.fullName || "Nguyễn Văn Khách Hàng").trim(),
-          phoneNumber: (input?.phoneNumber || "0987654321").trim(),
-          streetLine1: (input?.streetLine1 || "27 hoàng hoa thám").trim(),
-          city: (input?.city || "Hà Nội").trim(),
+          fullName: (input?.fullName || "").trim(),
+          phoneNumber: (input?.phoneNumber || "").trim(),
+          streetLine1: (input?.streetLine1 || "").trim(),
+          city: (input?.city || "").trim(),
           countryCode: "VN",
         }
       };
       const addressRes = await shopApi(setAddressQuery, addressVars);
-      console.log("Address Result Details:", addressRes?.data?.setOrderShippingAddress);
-      if (addressRes?.data?.setOrderShippingAddress?.__typename === "ErrorResult") {
-        throw new Error(addressRes.data.setOrderShippingAddress.message);
+      const addressData = addressRes?.data?.setOrderShippingAddress;
+      if (addressData?.__typename === "ErrorResult") {
+        const errMsg = `[Bước 1] Lỗi địa chỉ: ${addressData.message}`;
+        toast.error(errMsg);
+        throw new Error(errMsg);
       }
-
 
       // 2. Set Shipping Method
       console.log("Checkout Step 2: Setting Shipping Method...");
@@ -543,10 +589,12 @@ export const useCheckout = () => {
           }
         }
       `;
-      const shippingRes = await shopApi(setShippingQuery, { ids: [input?.shippingMethodId || "2"] });
-      console.log("Shipping Result Details:", shippingRes?.data?.setOrderShippingMethod);
-      if (shippingRes?.data?.setOrderShippingMethod?.__typename === "ErrorResult") {
-        throw new Error(shippingRes.data.setOrderShippingMethod.message);
+      const shippingRes = await shopApi(setShippingQuery, { ids: [input?.shippingMethodId || "1"] });
+      const shippingData = shippingRes?.data?.setOrderShippingMethod;
+      if (shippingData?.__typename === "ErrorResult") {
+        const errMsg = `[Bước 2] Lỗi vận chuyển: ${shippingData.message}`;
+        toast.error(errMsg);
+        throw new Error(errMsg);
       }
 
       // 3. Set Custom Fields (Ghi chú & Hóa đơn)
@@ -584,11 +632,16 @@ export const useCheckout = () => {
           }
         };
         const cfRes = await shopApi(setCustomFieldsQuery, customFieldsVars);
-        console.log("Custom Fields Result Details:", cfRes?.data?.setOrderCustomFields);
+        const cfData = cfRes?.data?.setOrderCustomFields;
+        if (cfData?.__typename === "ErrorResult") {
+          const errMsg = `[Bước 3] Lỗi ghi chú/hóa đơn: ${cfData.message}`;
+          toast.error(errMsg);
+          throw new Error(errMsg);
+        }
       }
 
-      // 4. Transition to ArrangingPayment (Bước cuối cùng theo yêu cầu)
-      console.log("Checkout Step 4 (Final): Transitioning to ArrangingPayment...");
+      // 4. Transition to ArrangingPayment
+      console.log("Checkout Step 4: Transitioning State...");
       const transitionQuery = `
         mutation TransitionState($state: String!) {
           transitionOrderToState(state: $state) {
@@ -599,11 +652,12 @@ export const useCheckout = () => {
         }
       `;
       const transitionRes = await shopApi(transitionQuery, { state: "ArrangingPayment" });
-      console.log("Transition Result:", transitionRes);
-      if (transitionRes?.data?.transitionOrderToState?.__typename === "ErrorResult") {
-        throw new Error(transitionRes.data.transitionOrderToState.message);
+      const transitionData = transitionRes?.data?.transitionOrderToState;
+      if (transitionData?.__typename === "ErrorResult") {
+        const errMsg = `[Bước 4] Lỗi trạng thái đơn: ${transitionData.message}`;
+        toast.error(errMsg);
+        throw new Error(errMsg);
       }
-
 
       // 5. Add Payment
       console.log("Checkout Step 5: Adding Payment...");
@@ -611,12 +665,7 @@ export const useCheckout = () => {
         mutation AddPayment($input: PaymentInput!) {
           addPaymentToOrder(input: $input) {
             __typename
-            ... on Order {
-              id
-              code
-              state
-              totalWithTax
-            }
+            ... on Order { id code state totalWithTax }
             ... on ErrorResult { errorCode message }
           }
         }
@@ -624,28 +673,27 @@ export const useCheckout = () => {
       const paymentVars = {
         input: {
           method: input?.paymentMethodCode || "manual-payment-cod",
-          metadata: {
-            note: "Khách thanh toán trực tiếp tại quầy"
-          }
+          metadata: { note: "Thanh toán tại quầy" }
         }
       };
       const paymentRes = await shopApi(addPaymentQuery, paymentVars);
-      console.log("Payment Result:", paymentRes);
       const paymentData = paymentRes?.data?.addPaymentToOrder;
       if (paymentData?.__typename === "ErrorResult") {
-        throw new Error(paymentData.message);
+        const errMsg = `[Bước 5] Lỗi thanh toán: ${paymentData.message}`;
+        toast.error(errMsg);
+        throw new Error(errMsg);
       }
 
-      // Success
-      console.log("Checkout Complete!");
-      toast.success("Tạo đơn hàng thành công!", { id: "checkout" });
-
-      setCart([]); // Xóa giỏ hàng
-      setVisible(false); // Đóng sidebar
+      // Thành công
+      toast.dismiss("checkout");
+      toast.success("Tạo đơn hàng thành công!");
+      setCart([]);
+      setVisible(false);
 
     } catch (error: any) {
       console.error("Checkout error:", error);
-      toast.error(error.message || "Lỗi thanh toán", { id: "checkout" });
+      toast.dismiss("checkout");
+      toast.error(error.message || "Lỗi thanh toán");
     }
   };
 };

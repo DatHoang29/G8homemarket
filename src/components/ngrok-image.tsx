@@ -53,7 +53,6 @@ export const NgrokImage: React.FC<NgrokImageProps> = ({ src, alt, className, sty
         if (url.includes("ngrok")) {
           headers["ngrok-skip-browser-warning"] = "true";
         }
-        console.log("Fetching image via JS:", url);
         const res = await fetch(url, { headers });
         if (!res.ok) {
           console.warn("Image fetch failed, status:", res.status, url);

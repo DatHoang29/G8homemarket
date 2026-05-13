@@ -1,9 +1,8 @@
 import { useMatches } from "react-router-dom";
 import { useSetAtom } from "jotai";
-import { userInfoKeyState, userInfoState } from "@/state";
-import { authorize } from "zmp-sdk/apis";
+import { userInfoKeyState } from "@/state";
+import api, { getLocation } from "zmp-sdk";
 import { loginWithZalo } from "@/utils/auth";
-import { useAtomCallback } from "jotai/utils";
 import toast from "react-hot-toast";
 
 export function useRouteHandle() {
@@ -13,33 +12,58 @@ export function useRouteHandle() {
 }
 
 export function useRequestInformation() {
-  const getStoredUserInfo = useAtomCallback(async (get) => {
-    const userInfo = await get(userInfoState);
-    return userInfo;
-  });
   const setInfoKey = useSetAtom(userInfoKeyState);
   const refreshPermissions = () => setInfoKey((key) => key + 1);
 
   return async () => {
+    const zmp = (window as any).zmp || api;
     try {
-      // Đảm bảo đã có quyền truy cập thông tin và số điện thoại
-      await authorize({
+      // Đợt 1: Xin quyền thông tin cá nhân và số điện thoại (tối đa 2 quyền)
+      await zmp.authorize({
         scopes: ["scope.userInfo", "scope.userPhonenumber"],
-      }).catch((err) => {
-        // Kịch bản 2: Từ chối cấp quyền
-        toast.error("Bạn cần cấp quyền số điện thoại để tiếp tục");
-        throw err;
       });
-      
-      // Thực hiện login với backend Vendure (Gọi API ngrok)
-      const result = await loginWithZalo();
-      
-      // Refresh state để cập nhật UI
-      refreshPermissions();
-      
-      return result;
+
+      // Lấy vị trí user qua bản đồ sau khi đã được cấp quyền
+      let tokenLocation: string = "";
+      try {
+        // Đợt 2: Xin quyền vị trí riêng biệt trước khi mở bản đồ
+        await zmp
+          .authorize({
+            scopes: ["scope.userLocation"],
+          })
+          .catch((err) => {
+            console.error("Authorize Location Error:", err);
+            throw new Error(
+              `Lỗi xin quyền vị trí: ${err.message || JSON.stringify(err)}`,
+            );
+          });
+        const locationRes = await getLocation();
+        tokenLocation = locationRes.token ?? "";
+        console.log("Location Token obtained:", tokenLocation);
+        
+      } catch (locationErr: any) {
+        console.warn("Location Step Failed:", locationErr);
+        toast.error(locationErr.message || "Bạn chưa chọn địa chỉ");
+      }
+
+      try {
+        // Thực hiện login với backend Vendure (Gọi API ngrok)
+        const result = await loginWithZalo(tokenLocation);
+        toast.dismiss("login-loading");
+
+        // Refresh state để cập nhật UI
+        refreshPermissions();
+        return result;
+      } catch (error: any) {
+        toast.dismiss("login-loading");
+        toast.error(
+          `Đăng nhập thất bại: ${error.message || "Vui lòng thử lại"}`,
+        );
+        throw error;
+      }
     } catch (e) {
       console.error("Login process failed:", e);
+      toast.dismiss("login-loading");
       throw e;
     }
   };

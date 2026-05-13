@@ -17,14 +17,13 @@ const ProductListContent: React.FC = () => {
 
   return (
     <Box className="p-4">
-      <Grid columnCount={1} gap={12}>
-        {products.slice(0, 1).map((product) => (
+      <Grid columnCount={2} style={{ gap: '12px' }}>
+        {products.map((product) => (
           <ProductItem key={product.id} product={product} />
         ))}
       </Grid>
     </Box>
   );
-
 };
 
 export const ProductList: React.FC = () => {

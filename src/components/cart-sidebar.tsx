@@ -1,62 +1,18 @@
 import React from "react";
 import { useAtom, useAtomValue } from "jotai";
-import { cartState, cartVisibleState, cartTotalState, useCheckout } from "@/state";
-import { Box, Text, Button, Spinner, Sheet, Input, Checkbox } from "zmp-ui";
+import { cartState, cartVisibleState, cartTotalState, useCheckout, userAddressState, userAddressDetailState, loadableUserInfoState } from "@/state";
+import { Box, Text, Button, Sheet, Input, Checkbox } from "zmp-ui";
 import { formatPrice } from "@/utils/format";
 import { NgrokImage } from "@/components/ngrok-image";
 import { shopApi } from "@/utils/auth";
 import toast from "react-hot-toast";
-
-const SvgClose = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M18 6L6 18M6 6l12 12" stroke="#0d0d0d" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
-
-const SvgCartEmpty = () => (
-  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#e9e9e9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <line x1="3" y1="6" x2="21" y2="6" stroke="#e9e9e9" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M16 10a4 4 0 01-8 0" stroke="#e9e9e9" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const SvgDelete = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <polyline points="3 6 5 6 21 6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-    <path d="M19 6l-1 14H6L5 6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M10 11v6M14 11v6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-    <path d="M9 6V4h6v2" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const SvgSummary = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M3 6h18M16 10a4 4 0 01-8 0" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const SvgTruck = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="1" y="3" width="15" height="13" stroke="#16a34a" strokeWidth="2" />
-    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" stroke="#16a34a" strokeWidth="2" />
-    <circle cx="5.5" cy="18.5" r="2.5" stroke="#16a34a" strokeWidth="2" />
-    <circle cx="18.5" cy="18.5" r="2.5" stroke="#16a34a" strokeWidth="2" />
-  </svg>
-);
-
-const SvgInvoice = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 4h6" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
 
 export const CartSidebar: React.FC = () => {
   const [visible, setVisible] = useAtom(cartVisibleState);
   const [cart, setCart] = useAtom(cartState);
   const { totalAmount } = useAtomValue(cartTotalState);
   const checkout = useCheckout();
+  const userInfoLoadable = useAtomValue(loadableUserInfoState);
   const [processing, setProcessing] = React.useState(false);
   const [step, setStep] = React.useState<"cart" | "checkout">("cart");
 
@@ -77,6 +33,15 @@ export const CartSidebar: React.FC = () => {
   const [addressesLoading, setAddressesLoading] = React.useState(false);
   const [selectedAddressId, setSelectedAddressId] = React.useState<string | null>(null);
   const [showCreateAddress, setShowCreateAddress] = React.useState(false);
+  const createAddressRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (showCreateAddress) {
+      setTimeout(() => {
+        createAddressRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 300);
+    }
+  }, [showCreateAddress]);
 
   type ShippingMethod = {
     id: string;
@@ -107,10 +72,13 @@ export const CartSidebar: React.FC = () => {
     return 0;
   };
 
-  const [fullName, setFullName] = React.useState("Nguyễn Văn Khách Hàng");
-  const [phoneNumber, setPhoneNumber] = React.useState("0987654321");
-  const [streetLine1, setStreetLine1] = React.useState("27 hoàng hoa thám");
-  const [city, setCity] = React.useState("Hà Nội");
+  const [fullName, setFullName] = React.useState("");
+  const [phoneNumber, setPhoneNumber] = React.useState("");
+  const [streetLine1, setStreetLine1] = React.useState("");
+  const [city, setCity] = React.useState("");
+
+  const addressDetail = useAtomValue(userAddressDetailState);
+  const displayAddress = useAtomValue(userAddressState);
 
   // Invoice States
   const [wantInvoice, setWantInvoice] = React.useState(false);
@@ -159,13 +127,70 @@ export const CartSidebar: React.FC = () => {
       }));
       setAddresses(list);
 
+      // Kiểm tra xem địa chỉ định vị đã tồn tại trong danh sách chưa
+      const detectedStreet = addressDetail
+        ? [addressDetail.house_number, addressDetail.road, addressDetail.neighbourhood, addressDetail.suburb]
+          .filter(Boolean)
+          .join(", ")
+        : displayAddress || "";
+      const detectedCity = addressDetail?.city || "";
+
+      const isAlreadyInList = list.some(a =>
+        (a.streetLine1 === detectedStreet && a.city === detectedCity) ||
+        (a.streetLine1 === displayAddress)
+      );
+
+      // Nếu có địa chỉ từ định vị VÀ chưa có trong danh sách -> Tự động gọi API tạo mới
+      console.log("addressDetail", addressDetail)
+      console.log("displayAddress", displayAddress)
+      console.log("isAlreadyInList", isAlreadyInList)
+      if ((addressDetail || displayAddress) && !isAlreadyInList) {
+        if (userInfoLoadable.state === "hasData") {
+          const uInfo = userInfoLoadable.data;
+          const name = uInfo?.name || "Khách hàng";
+          const phone = localStorage.getItem("user_phone") || uInfo?.phone || "0000000000";
+
+          const createMutation = `
+            mutation CreateAddress($input: CreateAddressInput!) {
+              createCustomerAddress(input: $input) {
+                id
+                fullName
+                phoneNumber
+                streetLine1
+                city
+                country { code name }
+              }
+            }
+          `;
+
+          const createRes = await shopApi(createMutation, {
+            input: {
+              fullName: name,
+              phoneNumber: phone,
+              streetLine1: detectedStreet,
+              city: detectedCity,
+              countryCode: "VN",
+              defaultShippingAddress: true
+            }
+          });
+
+          const createdRaw: CustomerAddress | undefined = createRes?.data?.createCustomerAddress;
+          if (createdRaw) {
+            const created: CustomerAddress = {
+              ...createdRaw,
+              countryCode: createdRaw.countryCode || createdRaw.country?.code || "VN",
+            };
+            setAddresses(prev => [created, ...prev]);
+            setSelectedAddressId(created.id);
+            return;
+          }
+        }
+      }
+
       // Auto-select first address if present
       if (list.length > 0 && !selectedAddressId) {
         setSelectedAddressId(list[0].id);
-      }
-
-      // If none, open create form
-      if (list.length === 0) {
+      } else if (list.length === 0) {
         setShowCreateAddress(true);
       }
     } catch (e: any) {
@@ -187,13 +212,7 @@ export const CartSidebar: React.FC = () => {
     } finally {
       setAddressesLoading(false);
     }
-  }, []); // Remove selectedAddressId from here
-
-  React.useEffect(() => {
-    if (!visible) return;
-    if (step !== "checkout") return;
-    loadAddresses();
-  }, [visible, step, loadAddresses]);
+  }, [addressDetail, displayAddress, userInfoLoadable]);
 
   const loadShippingMethods = React.useCallback(async () => {
     setShippingMethodsLoading(true);
@@ -241,13 +260,14 @@ export const CartSidebar: React.FC = () => {
 
   React.useEffect(() => {
     if (!visible) return;
-    if (step !== "checkout") return;
+    loadAddresses();
     loadShippingMethods();
     loadPaymentMethods();
-  }, [visible, step, loadShippingMethods, loadPaymentMethods]);
+  }, [visible, loadShippingMethods, loadPaymentMethods]);
 
   const handleCreateAddress = async () => {
     setProcessing(true);
+    const loadingToast = toast.loading("Đang lưu địa chỉ...");
     try {
       const mutation = `
         mutation CreateAddress($input: CreateAddressInput!) {
@@ -287,35 +307,58 @@ export const CartSidebar: React.FC = () => {
 
       setAddresses((prev) => [created, ...prev.filter((a) => a.id !== created.id)]);
       setSelectedAddressId(created.id);
-      setShowCreateAddress(false);
-      toast.success("Đã tạo địa chỉ mới");
+      setFullName("");
+      setPhoneNumber("");
+      setStreetLine1("");
+      setCity("");
     } catch (e: any) {
       console.warn("Create address failed:", e);
       toast.error(e?.message || "Không tạo được địa chỉ");
     } finally {
       setProcessing(false);
+      setShowCreateAddress(false);
+      toast.dismiss(loadingToast);
     }
   };
 
   const handleCheckout = async () => {
     setProcessing(true);
+    const loadingToast = toast.loading("Đang xử lý đơn hàng...");
     const addr = selectedAddress;
     if (addresses.length > 0 && !addr) {
       toast.error("Vui lòng chọn địa chỉ giao hàng");
       setProcessing(false);
+      toast.dismiss(loadingToast);
       return;
     }
 
     if (shippingMethods.length > 0 && !selectedShippingMethodId) {
       toast.error("Vui lòng chọn tuỳ chọn giao hàng");
       setProcessing(false);
+      toast.dismiss(loadingToast);
       return;
     }
 
     if (paymentMethods.length > 0 && !selectedPaymentMethodCode) {
       toast.error("Vui lòng chọn phương thức thanh toán");
       setProcessing(false);
+      toast.dismiss(loadingToast);
       return;
+    }
+
+    if (wantInvoice) {
+      if (!invoiceCompanyName.trim()) {
+        toast.error("Vui lòng nhập tên công ty xuất hóa đơn");
+        setProcessing(false);
+        toast.dismiss(loadingToast);
+        return;
+      }
+      if (!invoiceTaxId.trim()) {
+        toast.error("Vui lòng nhập mã số thuế công ty");
+        setProcessing(false);
+        toast.dismiss(loadingToast);
+        return;
+      }
     }
 
     await checkout({
@@ -334,6 +377,7 @@ export const CartSidebar: React.FC = () => {
       invoiceCompanyAddress: wantInvoice ? invoiceCompanyAddress : undefined,
     });
     setProcessing(false);
+    toast.dismiss(loadingToast);
   };
 
   const openCheckoutForm = () => {
@@ -445,8 +489,11 @@ export const CartSidebar: React.FC = () => {
                 </Box>
               </Box>
 
-              {showCreateAddress && (
-                <Box className="space-y-4 py-2 border-y border-gray-100 my-2">
+              <div 
+                ref={createAddressRef}
+                className={`grid transition-all duration-300 ease-in-out ${showCreateAddress ? "grid-rows-[1fr] opacity-100 my-2" : "grid-rows-[0fr] opacity-0"}`}
+              >
+                <Box className="overflow-hidden space-y-4 py-2 border-y border-gray-100">
                   <Text bold className="text-primary">Thêm địa chỉ mới</Text>
                   <Input
                     label="Họ và tên"
@@ -479,10 +526,10 @@ export const CartSidebar: React.FC = () => {
                     onClick={handleCreateAddress}
                     className="mt-2"
                   >
-                    {processing ? <Spinner /> : "Lưu địa chỉ"}
+                    {"Lưu địa chỉ"}
                   </Button>
                 </Box>
-              )}
+              </div>
 
               <Box className="bg-gray-50 p-3 rounded-2xl">
                 <Box className="flex items-center justify-between">
@@ -658,7 +705,7 @@ export const CartSidebar: React.FC = () => {
 
                 {/* Items List (Simplified) */}
                 <Box className="space-y-3">
-                  {cart.map((item) => (
+                  {cart.filter(item => item && item.product).map((item) => (
                     <Box key={item.product.id} className="flex space-x-3 items-start">
                       <Box className="w-12 h-12 rounded-lg overflow-hidden flex-none border border-gray-100">
                         <NgrokImage src={item.product.image} className="w-full h-full object-cover" alt={item.product.name} />
@@ -701,7 +748,7 @@ export const CartSidebar: React.FC = () => {
               </Box>
             </Box>
           ) : (
-            cart.map((item) => (
+            cart.filter(item => item && item.product).map((item) => (
               <Box key={item.product.id} className="flex items-center space-x-3 bg-gray-50 p-3 rounded-2xl">
                 <Box className="w-16 h-16 rounded-xl overflow-hidden shadow-sm">
                   <NgrokImage src={item.product.image} className="w-full h-full object-cover" alt={item.product.name} />
@@ -750,7 +797,7 @@ export const CartSidebar: React.FC = () => {
                   className="rounded-xl shadow-lg shadow-primary/20"
                   onClick={handleCheckout}
                 >
-                  {processing ? <Spinner /> : "Tạo đơn"}
+                  {"Tạo đơn"}
                 </Button>
               </Box>
             ) : (
@@ -761,7 +808,7 @@ export const CartSidebar: React.FC = () => {
                 className="rounded-xl shadow-lg shadow-primary/20"
                 onClick={openCheckoutForm}
               >
-                {processing ? <Spinner /> : "Thanh toán ngay"}
+                {"Thanh toán ngay"}
               </Button>
             )}
           </Box>
@@ -770,3 +817,48 @@ export const CartSidebar: React.FC = () => {
     </Sheet>
   );
 };
+
+const SvgClose = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18 6L6 18M6 6l12 12" stroke="#0d0d0d" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const SvgCartEmpty = () => (
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#e9e9e9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <line x1="3" y1="6" x2="21" y2="6" stroke="#e9e9e9" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M16 10a4 4 0 01-8 0" stroke="#e9e9e9" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const SvgDelete = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <polyline points="3 6 5 6 21 6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+    <path d="M19 6l-1 14H6L5 6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 11v6M14 11v6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+    <path d="M9 6V4h6v2" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const SvgSummary = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 6h18M16 10a4 4 0 01-8 0" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const SvgTruck = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="3" width="15" height="13" stroke="#16a34a" strokeWidth="2" />
+    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" stroke="#16a34a" strokeWidth="2" />
+    <circle cx="5.5" cy="18.5" r="2.5" stroke="#16a34a" strokeWidth="2" />
+    <circle cx="18.5" cy="18.5" r="2.5" stroke="#16a34a" strokeWidth="2" />
+  </svg>
+);
+
+const SvgInvoice = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 4h6" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
