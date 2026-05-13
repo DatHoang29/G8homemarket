@@ -688,12 +688,14 @@ export const useCheckout = () => {
       toast.dismiss("checkout");
       toast.success("Tạo đơn hàng thành công!");
       setCart([]);
-      setVisible(false);
+      
+      return paymentData?.code;
 
     } catch (error: any) {
       console.error("Checkout error:", error);
       toast.dismiss("checkout");
       toast.error(error.message || "Lỗi thanh toán");
+      return null;
     }
   };
 };

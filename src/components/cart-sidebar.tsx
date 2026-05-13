@@ -1,7 +1,7 @@
 import React from "react";
-import { useAtom, useAtomValue } from "jotai";
-import { cartState, cartVisibleState, cartTotalState, useCheckout, userAddressState, userAddressDetailState, loadableUserInfoState } from "@/state";
-import { Box, Text, Button, Sheet, Input, Checkbox } from "zmp-ui";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { cartState, cartVisibleState, cartTotalState, useCheckout, userAddressState, userAddressDetailState, loadableUserInfoState, userLocationState, fetchAddressFromCoords } from "@/state";
+import { Box, Text, Button, Sheet, Input, Checkbox, Icon } from "zmp-ui";
 import { formatPrice } from "@/utils/format";
 import { NgrokImage } from "@/components/ngrok-image";
 import { shopApi } from "@/utils/auth";
@@ -14,7 +14,45 @@ export const CartSidebar: React.FC = () => {
   const checkout = useCheckout();
   const userInfoLoadable = useAtomValue(loadableUserInfoState);
   const [processing, setProcessing] = React.useState(false);
-  const [step, setStep] = React.useState<"cart" | "checkout">("cart");
+  const [step, setStep] = React.useState<"cart" | "checkout" | "success">("cart");
+  const [completedOrder, setCompletedOrder] = React.useState<any>(null);
+  const [loadingOrder, setLoadingOrder] = React.useState(false);
+
+  const fetchOrderDetails = async (code: string) => {
+    setLoadingOrder(true);
+    try {
+      const query = `
+        query GetOrderByCode($code: String!) {
+          orderByCode(code: $code) {
+            id
+            code
+            state
+            totalWithTax
+            currencyCode
+            customer { phoneNumber emailAddress }
+            shippingAddress { fullName streetLine1 city province }
+            customFields {
+              customerNote
+              isCompanyInvoice
+              invoiceCompanyName
+              invoiceTaxId
+            }
+            lines {
+              quantity
+              linePriceWithTax
+              productVariant { name sku }
+            }
+          }
+        }
+      `;
+      const res = await shopApi(query, { code });
+      setCompletedOrder(res?.data?.orderByCode);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingOrder(false);
+    }
+  };
 
   type CustomerAddress = {
     id: string;
@@ -77,6 +115,16 @@ export const CartSidebar: React.FC = () => {
   const [streetLine1, setStreetLine1] = React.useState("");
   const [city, setCity] = React.useState("");
 
+  React.useEffect(() => {
+    if (userInfoLoadable.state === "hasData" && userInfoLoadable.data) {
+      if (!fullName) setFullName(userInfoLoadable.data.name || "");
+      if (!phoneNumber) {
+        const phone = localStorage.getItem("user_phone") || userInfoLoadable.data.phone || "";
+        if (phone) setPhoneNumber(phone);
+      }
+    }
+  }, []);
+
   const addressDetail = useAtomValue(userAddressDetailState);
   const displayAddress = useAtomValue(userAddressState);
 
@@ -100,6 +148,32 @@ export const CartSidebar: React.FC = () => {
 
   const shippingFee = Number(selectedShippingMethod?.priceWithTax || 0);
   const finalTotal = totalAmount + shippingFee;
+
+  const location = useAtomValue(userLocationState);
+  const setAddress = useSetAtom(userAddressState);
+  const setAddressDetail = useSetAtom(userAddressDetailState);
+
+  // useEffect tự động lấy địa chỉ khi có tọa độ mới
+  React.useEffect(() => {
+    const updateAddress = async () => {
+      console.log("Location changed:", location);
+      if (location.latitude && location.longitude) {
+        console.log("Location:", location);
+        const geoData = await fetchAddressFromCoords(location.latitude, location.longitude);
+        console.log("Geo Data:", geoData);
+        if (geoData && geoData.display_name) {
+          setAddress(geoData.display_name);
+          localStorage.setItem("user_address", geoData.display_name);
+
+          if (geoData.address) {
+            setAddressDetail(geoData.address);
+            localStorage.setItem("user_address_detail", JSON.stringify(geoData.address));
+          }
+        }
+      }
+    };
+    updateAddress();
+  }, [visible, location.latitude, location.longitude, setAddress, setAddressDetail]);
 
   const loadAddresses = React.useCallback(async () => {
     setAddressesLoading(true);
@@ -135,10 +209,11 @@ export const CartSidebar: React.FC = () => {
         : displayAddress || "";
       const detectedCity = addressDetail?.city || "";
 
-      const isAlreadyInList = list.some(a =>
+      const isAlreadyInList = list.length > 0 && list.some(a =>
         (a.streetLine1 === detectedStreet && a.city === detectedCity) ||
         (a.streetLine1 === displayAddress)
       );
+      console.log({isAlreadyInList});
 
       // Nếu có địa chỉ từ định vị VÀ chưa có trong danh sách -> Tự động gọi API tạo mới
       console.log("addressDetail", addressDetail)
@@ -361,7 +436,7 @@ export const CartSidebar: React.FC = () => {
       }
     }
 
-    await checkout({
+    const orderCode = await checkout({
       fullName: addr?.fullName || fullName,
       phoneNumber: addr?.phoneNumber || phoneNumber,
       streetLine1: addr?.streetLine1 || streetLine1,
@@ -378,6 +453,11 @@ export const CartSidebar: React.FC = () => {
     });
     setProcessing(false);
     toast.dismiss(loadingToast);
+
+    if (orderCode) {
+      setStep("success");
+      fetchOrderDetails(orderCode);
+    }
   };
 
   const openCheckoutForm = () => {
@@ -406,7 +486,7 @@ export const CartSidebar: React.FC = () => {
         {/* Header */}
         <Box className="flex items-center justify-between mb-6">
           <Text size="xLarge" bold className="text-primary">
-            {step === "checkout" ? "Tạo đơn hàng" : "Giỏ hàng của bạn"}
+            {step === "checkout" ? "Tạo đơn hàng" : step === "success" ? "Hoàn tất" : "Giỏ hàng của bạn"}
           </Text>
           <Button
             variant="tertiary"
@@ -424,7 +504,52 @@ export const CartSidebar: React.FC = () => {
           className="flex-1 overflow-y-auto space-y-4 pb-24 overscroll-contain touch-pan-y"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
-          {cart.length === 0 ? (
+          {step === "success" ? (
+            <Box className="flex flex-col items-center justify-center h-full space-y-4 px-4 text-center">
+              <Icon icon="zi-check-circle-solid" className="text-green-500" style={{ fontSize: "64px" }} />
+              <Text size="xLarge" bold className="text-gray-800">Đặt hàng thành công!</Text>
+              
+              {loadingOrder ? (
+                <Text className="text-gray-500">Đang tải thông tin đơn hàng...</Text>
+              ) : completedOrder ? (
+                <Box className="w-full bg-gray-50 p-4 rounded-xl text-left space-y-2 mt-4">
+                  <Text bold className="text-primary border-b pb-2 mb-2">Mã đơn: {completedOrder.code}</Text>
+                  <Text>Khách hàng: {completedOrder.shippingAddress?.fullName || completedOrder.customer?.phoneNumber}</Text>
+                  <Text>Tổng tiền: <span className="font-bold text-orange-600">{formatPrice(completedOrder.totalWithTax)}</span></Text>
+                  
+                  {completedOrder.lines?.length > 0 && (
+                    <Box className="mt-4 border-t pt-2 space-y-1">
+                      <Text bold size="small">Sản phẩm:</Text>
+                      {completedOrder.lines.map((line: any, idx: number) => (
+                        <Text key={idx} size="small" className="text-gray-600">
+                          - {line.quantity}x {line.productVariant?.name} {line.productVariant?.sku ? `(${line.productVariant.sku})` : ''}
+                        </Text>
+                      ))}
+                    </Box>
+                  )}
+                  {completedOrder.customFields?.isCompanyInvoice && (
+                    <Box className="mt-4 border-t pt-2 space-y-1">
+                      <Text bold size="small">Hóa đơn công ty:</Text>
+                      <Text size="small" className="text-gray-600">{completedOrder.customFields.invoiceCompanyName} (MST: {completedOrder.customFields.invoiceTaxId})</Text>
+                    </Box>
+                  )}
+                </Box>
+              ) : null}
+
+              <Button
+                fullWidth
+                size="large"
+                className="mt-6 rounded-xl shadow-lg shadow-primary/20"
+                onClick={() => {
+                  setVisible(false);
+                  setStep("cart");
+                  setCompletedOrder(null);
+                }}
+              >
+                Tiếp tục mua sắm
+              </Button>
+            </Box>
+          ) : cart.length === 0 ? (
             <Box className="flex flex-col items-center justify-center h-full space-y-4">
               <SvgCartEmpty />
               <Text className="text-gray-400">Giỏ hàng đang trống</Text>
@@ -489,7 +614,7 @@ export const CartSidebar: React.FC = () => {
                 </Box>
               </Box>
 
-              <div 
+              <div
                 ref={createAddressRef}
                 className={`grid transition-all duration-300 ease-in-out ${showCreateAddress ? "grid-rows-[1fr] opacity-100 my-2" : "grid-rows-[0fr] opacity-0"}`}
               >
@@ -772,7 +897,7 @@ export const CartSidebar: React.FC = () => {
         </Box>
 
         {/* Footer */}
-        {cart.length > 0 && (
+        {step !== "success" && cart.length > 0 && (
           <Box className="mt-6 pt-6 border-t border-gray-100 space-y-4">
             <Box className="flex items-center justify-between">
               <Text size="large" className="text-gray-500">Tổng cộng</Text>

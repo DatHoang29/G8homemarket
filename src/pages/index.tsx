@@ -3,19 +3,12 @@ import { Page, Box, Text, Button, Sheet, Icon } from "zmp-ui";
 import api from "zmp-sdk";
 import { ProductList } from "@/components/product/list";
 import { useAtomValue, useSetAtom, useAtom } from "jotai";
-import {
-  cartTotalState,
-  cartVisibleState,
-  authSheetVisibleState,
-  userLocationState,
-  userAddressState,
-  userAddressDetailState,
-  fetchAddressFromCoords
-} from "@/state";
+import { cartTotalState, cartVisibleState, authSheetVisibleState } from "@/state";
 import { BottomNavigation } from "@/components/bottom-navigation";
 import { CartSidebar } from "@/components/cart-sidebar";
 import { useRequestInformation } from "@/hooks";
 import toast from "react-hot-toast";
+import Header from "@/components/header";
 
 const HomePage: React.FC = () => {
   const { totalItems } = useAtomValue(cartTotalState);
@@ -23,30 +16,6 @@ const HomePage: React.FC = () => {
   const requestInfo = useRequestInformation();
   const [authLoading, setAuthLoading] = React.useState(false);
   const [sheetVisible, setSheetVisible] = useAtom(authSheetVisibleState);
-
-  const location = useAtomValue(userLocationState);
-  const setAddress = useSetAtom(userAddressState);
-  const setAddressDetail = useSetAtom(userAddressDetailState);
-
-  // useEffect tự động lấy địa chỉ khi có tọa độ mới
-  React.useEffect(() => {
-    const updateAddress = async () => {
-      if (location.latitude && location.longitude) {
-        console.log("Location:", location);
-        const geoData = await fetchAddressFromCoords(location.latitude, location.longitude);
-        if (geoData && geoData.display_name) {
-          setAddress(geoData.display_name);
-          localStorage.setItem("user_address", geoData.display_name);
-
-          if (geoData.address) {
-            setAddressDetail(geoData.address);
-            localStorage.setItem("user_address_detail", JSON.stringify(geoData.address));
-          }
-        }
-      }
-    };
-    updateAddress();
-  }, [location.latitude, location.longitude, setAddress, setAddressDetail]);
 
   const handleLogin = React.useCallback(async () => {
     if (authLoading) return;
@@ -64,35 +33,7 @@ const HomePage: React.FC = () => {
 
   return (
     <Page className="bg-gray-50 pb-20">
-      <Box className="bg-white p-4 pt-st sticky top-0 z-[100] flex items-center justify-between shadow-sm">
-        <Box className="flex items-center space-x-2">
-          <Box
-            className="w-10 h-10 bg-white rounded-xl flex items-center justify-center cursor-pointer active:scale-95 transition-transform overflow-hidden shadow-sm"
-            onClick={() => {
-              // Secret logout for testing on mobile: click 3 times
-              window._clickCount = (window._clickCount || 0) + 1;
-              toast(`Click ${window._clickCount}/3`);
-              if (window._clickCount >= 3) {
-                window._clickCount = 0;
-                localStorage.clear();
-                toast.success("Đã xóa dữ liệu, đang tải lại...");
-                setTimeout(() => window.location.reload(), 1000);
-              }
-            }}
-          >
-            <img
-              src="https://images.weserv.nl/?url=thietbidieng8.com/userfile/config/Logo.png"
-              alt="G8 Logo"
-              className="w-full h-full object-contain p-1"
-            />
-          </Box>
-          <Box>
-            <Text size="large" bold className="text-primary">G8 Home</Text>
-            <Text size="xSmall" className="text-gray-400">Mua sắm thông minh</Text>
-          </Box>
-        </Box>
-      </Box>
-
+      <Header />
       <Box className="mt-4 px-4 flex items-center justify-between">
         <Box>
           <Text size="large" bold className="text-gray-800">Sản phẩm mới</Text>
@@ -125,13 +66,13 @@ const HomePage: React.FC = () => {
           <Box className="w-full aspect-video flex items-center justify-center mb-6">
             <img
               src="https://images.weserv.nl/?url=thietbidieng8.com/userfile/config/Logo.png"
-              alt="G8 Home Logo"
+              alt="G8 Home Market Logo"
               className="w-48 h-auto object-contain animate-fade-in"
             />
           </Box>
 
           <Text size="xLarge" bold className="text-gray-900 mb-6 px-4">
-            Chào mừng bạn đến với G8 Home!
+            Chào mừng bạn đến với G8 Home Market!
           </Text>
 
           {/* Features List */}
@@ -157,7 +98,7 @@ const HomePage: React.FC = () => {
           </Box>
 
           <Text size="xSmall" className="text-gray-400 mb-8 px-6 leading-relaxed">
-            Vui lòng đồng ý chia sẻ số điện thoại để liên kết với tài khoản của bạn trên hệ thống G8 Home.
+            Vui lòng đồng ý chia sẻ số điện thoại để liên kết với tài khoản của bạn trên hệ thống G8 Home Market.
           </Text>
 
           <Box className="w-full space-y-4 pb-8">

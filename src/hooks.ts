@@ -1,6 +1,6 @@
 import { useMatches } from "react-router-dom";
 import { useSetAtom } from "jotai";
-import { userInfoKeyState } from "@/state";
+import { userInfoKeyState, userLocationState } from "@/state";
 import api, { getLocation } from "zmp-sdk";
 import { loginWithZalo } from "@/utils/auth";
 import toast from "react-hot-toast";
@@ -13,6 +13,7 @@ export function useRouteHandle() {
 
 export function useRequestInformation() {
   const setInfoKey = useSetAtom(userInfoKeyState);
+  const setLocation = useSetAtom(userLocationState);
   const refreshPermissions = () => setInfoKey((key) => key + 1);
 
   return async () => {
@@ -50,6 +51,12 @@ export function useRequestInformation() {
         // Thực hiện login với backend Vendure (Gọi API ngrok)
         const result = await loginWithZalo(tokenLocation);
         toast.dismiss("login-loading");
+
+        const lat = localStorage.getItem("user_latitude");
+        const lng = localStorage.getItem("user_longitude");
+        if (lat && lng) {
+          setLocation({ latitude: lat, longitude: lng });
+        }
 
         // Refresh state để cập nhật UI
         refreshPermissions();

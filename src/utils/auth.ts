@@ -4,6 +4,7 @@ import CONFIG from "@/config";
 type CurrentUser = {
   id: string;
   identifier?: string;
+  phoneNumber: string;
   __typename: "CurrentUser";
 };
 
@@ -99,6 +100,7 @@ export async function loginWithZalo(tokenLocation: string) {
                 ... on CurrentUser {
                   id
                   identifier
+                  phoneNumber
                   location {
                     latitude
                     longitude
@@ -148,6 +150,7 @@ export async function loginWithZalo(tokenLocation: string) {
           localStorage.setItem("vendure_session", sessionToken);
         }
         localStorage.setItem("user_id", result.id);
+        localStorage.setItem("user_phone", result.phoneNumber);
 
         // Lưu thông tin vị trí mà Server vừa giải mã và trả về
         const serverLocation = (body?.data?.authenticate as any)?.location;
@@ -174,13 +177,14 @@ export async function loginWithZalo(tokenLocation: string) {
     const mockUser: CurrentUser = {
       id: "mock-user-123",
       identifier: "guest@g8home.vn",
+      phoneNumber: "123456789",
       __typename: "CurrentUser",
     };
     console.log("Using mock data, saving zma_token:", accessToken);
     localStorage.setItem(
       "zma_token",
       accessToken ||
-        "752658f5d13832475dec8a4f0d3c70bfc0df56cee3915c44c6b0ba12059065cf",
+      "752658f5d13832475dec8a4f0d3c70bfc0df56cee3915c44c6b0ba12059065cf",
     ); // Vẫn lưu token ZMA giả lập
     // localStorage.setItem("vendure_session", "mock-session-token");
     localStorage.setItem("user_id", mockUser.id);
